@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mobilis"
+version = "0.1.0"
+description = "Bibliothèque de traitement des données Mobilis"
+requires-python = ">=3.11"
+dependencies = ["tzdata; sys_platform == 'win32'"]  # Windows n'a pas les fuseaux horaires
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "mypy>=1.10", "ruff>=0.5"]
+
+[project.scripts]
+mobilis = "mobilis.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+mobilis = ["py.typed"]
+
+[tool.mypy]
+strict = true
+files = ["src", "tests", "mesure_memoire.py", "mesure_bornes.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
