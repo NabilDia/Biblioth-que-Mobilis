@@ -23,7 +23,7 @@ mobilis = ["py.typed"]
 
 [tool.mypy]
 strict = true
-files = ["src", "tests", "mesure_memoire.py", "mesure_bornes.py"]
+files = ["src", "tests", "mesure_memoire.py", "mesure_bornes.py", "journal_anomalies.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
