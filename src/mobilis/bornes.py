@@ -65,6 +65,8 @@ def reessayer(tentatives: int = 4) -> Callable[[Callable[P, R]], Callable[P, R]]
 
 @dataclass(frozen=True)
 class EtatStation:
+    """Ce que la borne d'une station déclare à un instant donné."""
+
     code: str
     velos_mecaniques: int
     velos_electriques: int
@@ -73,22 +75,28 @@ class EtatStation:
 
     @property
     def velos(self) -> int:
+        """Vélos présents, mécaniques et électriques."""
         return self.velos_mecaniques + self.velos_electriques
 
     @property
     def capacite(self) -> int:
+        """Nombre total d'emplacements vu par la borne."""
         return self.velos + self.places_libres
 
     @property
     def vide(self) -> bool:
+        """Vrai s'il n'y a plus de vélo à prendre."""
         return self.velos == 0
 
     @property
     def pleine(self) -> bool:
+        """Vrai s'il n'y a plus de place pour rendre un vélo."""
         return self.places_libres == 0
 
 
 class ClientBornes:
+    """Accès à l'API des bornes, limité à 8 appels simultanés par client."""
+
     def __init__(self, adresse: str, cle: str) -> None:
         self._adresse = adresse.rstrip("/")
         self._cle = cle
@@ -103,6 +111,7 @@ class ClientBornes:
             page = reponse["page_suivante"]
 
     def etat(self, code: str) -> EtatStation:
+        """Lit l'état d'une station ; lève ErreurBornes si l'API ne le donne pas."""
         reponse = self._get(f"/stations/{quote(code, safe='')}")
         try:
             return EtatStation(
@@ -138,19 +147,24 @@ class ClientBornes:
 
 @dataclass
 class Photo:
+    """États reçus pendant une photographie, et raison de chaque absence."""
+
     etats: dict[str, EtatStation] = field(default_factory=dict)
     injoignables: dict[str, str] = field(default_factory=dict)  # code -> raison
 
     @property
     def codes(self) -> set[str]:
+        """Toutes les stations annoncées par l'API, jointes ou non."""
         return self.etats.keys() | self.injoignables.keys()
 
     @property
     def vides(self) -> list[str]:
+        """Codes des stations sans vélo, triés."""
         return sorted(code for code, etat in self.etats.items() if etat.vide)
 
     @property
     def pleines(self) -> list[str]:
+        """Codes des stations sans place libre, triés."""
         return sorted(code for code, etat in self.etats.items() if etat.pleine)
 
 
@@ -188,6 +202,8 @@ def photographier(client: ClientBornes, limite: float = 14.0) -> Photo:
 
 @dataclass(frozen=True)
 class Ecarts:
+    """Désaccords entre l'API des bornes et le référentiel."""
+
     inconnues: list[str]  # dans l'API, pas dans le référentiel
     absentes: list[str]  # non fermées dans le référentiel, pas dans l'API
     fermees_presentes: list[str]
@@ -196,6 +212,8 @@ class Ecarts:
 
 
 def comparer(photo: Photo, stations: Mapping[str, Station]) -> Ecarts:
+    """Confronte une photographie au référentiel des stations."""
+
     def au_statut(statut: Statut) -> set[str]:
         return {code for code, station in stations.items() if station.statut is statut}
 
