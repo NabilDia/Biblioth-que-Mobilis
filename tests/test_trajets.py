@@ -120,9 +120,10 @@ def test_sans_doublons_meme_eloignes() -> None:
     assert [t.trajet_id for t in sans_doublons(trajets)] == ["T1", "T2", "T3"]
 
 
-def test_sans_doublons_oublie_hors_fenetre() -> None:
-    trajets = [replace(BASE, trajet_id=i) for i in ("T1", "T2", "T3", "T1")]
-    assert [t.trajet_id for t in sans_doublons(trajets, fenetre=2)] == ["T1", "T2", "T3", "T1"]
+def test_sans_doublons_apres_100_000_autres_trajets() -> None:
+    autres = (replace(BASE, trajet_id=f"X{i}") for i in range(100_001))
+    resultat = sans_doublons([BASE, *autres, BASE])
+    assert sum(t.trajet_id == BASE.trajet_id for t in resultat) == 1
 
 
 @pytest.mark.parametrize(
@@ -191,7 +192,7 @@ def test_memoire_constante() -> None:
 
     def pic(nombre: int) -> int:
         tracemalloc.start()
-        compter_flux(exploitables(sans_doublons(convertir(lignes(nombre)), fenetre=500)))
+        compter_flux(exploitables(sans_doublons(convertir(lignes(nombre)))))
         maximum = tracemalloc.get_traced_memory()[1]
         tracemalloc.stop()
         return maximum

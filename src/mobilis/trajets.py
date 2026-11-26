@@ -3,8 +3,10 @@
 import csv
 import gzip
 import logging
-from collections import Counter, deque
+import sqlite3
+from collections import Counter
 from collections.abc import Iterable, Iterator
+from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from enum import Enum
@@ -69,20 +71,16 @@ def lire_trajets(chemin: Path) -> Iterator[Trajet]:
     return convertir(lire_lignes(chemin))
 
 
-def sans_doublons(trajets: Iterable[Trajet], fenetre: int = 100_000) -> Iterator[Trajet]:
-    """Étape 3 : ne laisse passer qu'une fois chaque trajet_id."""
-    # shortcut: un doublon plus éloigné que `fenetre` trajets passe, à agrandir si cela arrive
-    # (ils se suivent tous dans l'export d'août à octobre 2026).
-    recents: deque[str] = deque()
-    vus: set[str] = set()
-    for trajet in trajets:
-        if trajet.trajet_id in vus:
-            continue
-        if len(recents) == fenetre:
-            vus.remove(recents.popleft())
-        recents.append(trajet.trajet_id)
-        vus.add(trajet.trajet_id)
-        yield trajet
+def sans_doublons(trajets: Iterable[Trajet]) -> Iterator[Trajet]:
+    """Étape 3 : ne laisse passer qu'une fois chaque trajet_id, même très éloigné (R11)."""
+    # Les identifiants vus vont dans une base SQLite temporaire sur disque, effacée à la
+    # fermeture : la mémoire reste bornée par le cache de SQLite, quelle que soit la taille.
+    with closing(sqlite3.connect("")) as base:
+        base.execute("CREATE TABLE vus (trajet_id TEXT PRIMARY KEY) WITHOUT ROWID")
+        for trajet in trajets:
+            nouveau = base.execute("INSERT OR IGNORE INTO vus VALUES (?)", (trajet.trajet_id,))
+            if nouveau.rowcount:
+                yield trajet
 
 
 def exploitables(trajets: Iterable[Trajet]) -> Iterator[Trajet]:

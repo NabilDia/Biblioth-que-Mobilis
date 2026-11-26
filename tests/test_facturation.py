@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from mobilis.facturation import (
-    JOURS_OUVERTS,
     Abonnement,
     Facture,
     Forfait,
@@ -185,11 +184,13 @@ def test_r6_pas_de_plafond_occasionnel() -> None:
     assert [f.montant for f in factures(duree(600), duree(600))] == [Decimal("25.00")] * 2
 
 
-def test_r6_trajet_trop_en_retard_signale() -> None:
-    jours = [f"2026-09-{n:02d}" for n in range(2, 2 + JOURS_OUVERTS)]
-    resultats = factures(*(duree(60, j, "ANNUEL") for j in [*jours, "2026-09-01", "2026-09-03"]))
-    assert resultats[-2].signalements == (Signalement.PLAFOND_NON_VERIFIE,)
-    assert resultats[-1].signalements == ()
+def test_r6_trajet_tres_en_retard_reste_plafonne() -> None:
+    """Trois trajets de 3 h le 1er septembre, le dernier reçu après trente autres journées."""
+    autres_jours = [duree(60, f"2026-09-{n:02d}", "ANNUEL") for n in range(2, 31)]
+    trois_heures = duree(180, "2026-09-01", "ANNUEL")
+    resultats = factures(trois_heures, trois_heures, *autres_jours, trois_heures)
+    premier_jour = [f.montant for f in resultats if f.jour == date(2026, 9, 1)]
+    assert premier_jour == [Decimal(m) for m in ("5", "5", "2")]  # 12 € au plus
 
 
 def test_r7_arrondi_moitie_vers_le_haut() -> None:
