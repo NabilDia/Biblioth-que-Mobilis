@@ -2,7 +2,9 @@
 
 import json
 import logging
+import sqlite3
 from collections.abc import Container, Iterable, Iterator
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -16,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 ZERO = Decimal("0.00")
 CENTIME = Decimal("0.01")
-JOURS_OUVERTS = 7  # les bornes hors réseau ont au plus 78 h de retard (août à octobre 2026)
 
 
 class Formule(Enum):
@@ -42,7 +43,6 @@ class Signalement(Enum):
 
     ABONNE_INTROUVABLE = "abonné introuvable"
     STATION_INCONNUE = "station inconnue"
-    PLAFOND_NON_VERIFIE = "trajet trop en retard pour vérifier le plafond"
 
 
 class Tarification(Protocol):
@@ -188,8 +188,18 @@ def facturer(
     stations: Container[str],
 ) -> Iterator[Facture]:
     """Produit une facture par trajet distinct (R11)."""
-    plafonds = _Plafonds()
-    for trajet in sans_doublons(trajets):
+    with closing(_Plafonds()) as plafonds:
+        yield from _factures(sans_doublons(trajets), tarifs, abonnements, stations, plafonds)
+
+
+def _factures(
+    trajets: Iterable[Trajet],
+    tarifs: Tarifs,
+    abonnements: dict[str, list[Abonnement]],
+    stations: Container[str],
+    plafonds: "_Plafonds",
+) -> Iterator[Facture]:
+    for trajet in trajets:
         jour = trajet.debut.astimezone(PARIS).date()
         signalements: list[Signalement] = []
         if trajet.abonne_id is not None and trajet.abonne_id not in abonnements:
@@ -206,8 +216,6 @@ def facturer(
         montant = tarification.prix(trajet).quantize(CENTIME, ROUND_HALF_UP)  # R7
 
         if motif is Motif.USAGE and trajet.abonne_id and tarif.plafond_jour is not None:
-            if not plafonds.ouvrir(jour):
-                signalements.append(Signalement.PLAFOND_NON_VERIFIE)
             montant = plafonds.appliquer(trajet.abonne_id, jour, montant, tarif.plafond_jour)
         yield Facture(trajet.trajet_id, jour, formule, motif, montant, tuple(signalements))
 
@@ -237,29 +245,29 @@ def _tarification(
 
 
 class _Plafonds:
-    """R6 : cumul par abonné et par jour, sur les derniers jours seulement (mémoire bornée)."""
+    """R6 : cumul par abonné et par jour, sur disque : un trajet très en retard reste plafonné."""
 
     def __init__(self) -> None:
-        self._cumuls: dict[date, dict[str, Decimal]] = {}
-
-    def ouvrir(self, jour: date) -> bool:
-        """Faux si ce jour, trop ancien, a déjà été oublié."""
-        if jour in self._cumuls:
-            return True
-        if len(self._cumuls) == JOURS_OUVERTS:
-            plus_ancien = min(self._cumuls)
-            if jour < plus_ancien:
-                return False
-            del self._cumuls[plus_ancien]
-        self._cumuls[jour] = {}
-        return True
+        self._base = sqlite3.connect("")  # base temporaire sur disque, effacée à la fermeture
+        self._base.execute(
+            "CREATE TABLE cumuls (abonne TEXT, jour TEXT, montant TEXT, PRIMARY KEY (abonne, jour))"
+        )
 
     def appliquer(self, abonne: str, jour: date, montant: Decimal, plafond: Decimal) -> Decimal:
-        cumuls = self._cumuls.get(jour, {})
-        deja = cumuls.get(abonne, ZERO)
+        """Montant dû une fois le plafond du jour atteint ; met à jour le cumul."""
+        cle = (abonne, jour.isoformat())
+        ligne = self._base.execute(
+            "SELECT montant FROM cumuls WHERE abonne = ? AND jour = ?", cle
+        ).fetchone()
+        deja = Decimal(ligne[0]) if ligne else ZERO  # stocké en texte : jamais de float
         montant = min(montant, plafond - deja)
-        cumuls[abonne] = deja + montant
+        self._base.execute(
+            "INSERT OR REPLACE INTO cumuls VALUES (?, ?, ?)", (*cle, str(deja + montant))
+        )
         return montant
+
+    def close(self) -> None:
+        self._base.close()
 
 
 def recettes(factures: Iterable[Facture]) -> dict[tuple[str, Formule, Motif], Cumul]:
