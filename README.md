@@ -36,9 +36,43 @@ mobilis etat
 
 Les trois premières commandes donnent toujours les mêmes chiffres. `etat` change à chaque appel.
 
-## Mesures
+## Exemples
+
+```console
+$ mobilis stations
+150 stations distinctes
+  en service : 144
+  hors service : 3
+  fermee : 3
+  en service avec capacité et coordonnées : 141
+
+9 anomalie(s)
+...
+$ mobilis facturation --donnees /chemin/vers/mobilis-kit/donnees
+Recettes           2026-08       2026-09       2026-10
+annuel         12 510,50 €   18 311,00 €   18 332,20 €
+...
+Total général : 249 166,70 €
+```
+
+Depuis Python, par exemple pour les trois heures de pointe en semaine :
+
+```python
+import os
+from pathlib import Path
+
+from mobilis.trajets import compter_flux, exploitables, lire_trajets, profil_horaire, sans_doublons
+
+chemin = Path(os.environ["MOBILIS_DONNEES"]) / "trajets_2026-08_2026-10.csv.gz"
+flux = compter_flux(exploitables(sans_doublons(lire_trajets(chemin))))
+semaine = profil_horaire(flux, weekend=False)
+print(sorted(range(24), key=lambda heure: -semaine[heure])[:3])  # [8, 17, 18]
+```
+
+## Mesures et journal des anomalies
 
 ```bash
+python journal_anomalies.py "$MOBILIS_DONNEES"
 python mesure_memoire.py "$MOBILIS_DONNEES"/trajets_2026-08_2026-10.csv.gz
 python mesure_bornes.py
 ```

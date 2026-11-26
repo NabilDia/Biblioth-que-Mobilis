@@ -42,6 +42,7 @@ Recettes = dict[tuple[str, Formule, Motif], Cumul]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Point d'entrée de la commande ; renvoie le code de sortie du programme."""
     parseur = _parseur()
     options = parseur.parse_args(argv)
     if options.donnees is None:

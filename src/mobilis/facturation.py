@@ -20,6 +20,8 @@ JOURS_OUVERTS = 7  # les bornes hors réseau ont au plus 78 h de retard (août �
 
 
 class Formule(Enum):
+    """Formules tarifaires de tarifs.json."""
+
     ANNUEL = "annuel"
     MENSUEL = "mensuel"
     SOLIDAIRE = "solidaire"
@@ -27,6 +29,8 @@ class Formule(Enum):
 
 
 class Motif(Enum):
+    """Raison du montant d'une facture."""
+
     USAGE = "usage"
     PENALITE = "non-restitution"
     FANTOME = "trajet fantôme"
@@ -34,6 +38,8 @@ class Motif(Enum):
 
 
 class Signalement(Enum):
+    """Point à transmettre à une équipe, sans effet sur le prix."""
+
     ABONNE_INTROUVABLE = "abonné introuvable"
     STATION_INCONNUE = "station inconnue"
     PLAFOND_NON_VERIFIE = "trajet trop en retard pour vérifier le plafond"
@@ -42,7 +48,8 @@ class Signalement(Enum):
 class Tarification(Protocol):
     """Tout ce qui sait donner le prix d'un trajet."""
 
-    def prix(self, trajet: Trajet) -> Decimal: ...
+    def prix(self, trajet: Trajet) -> Decimal:
+        """Prix du trajet, avant arrondi et plafond."""
 
 
 @dataclass(frozen=True)
@@ -52,6 +59,7 @@ class Forfait:
     montant: Decimal
 
     def prix(self, trajet: Trajet) -> Decimal:
+        """Le montant fixe, sans regarder le trajet."""
         return self.montant
 
 
@@ -67,6 +75,7 @@ class TarifTranches:
     plafond_jour: Decimal | None
 
     def prix(self, trajet: Trajet) -> Decimal:
+        """Déblocage, tranches d'usage et supplément électrique, avant plafond."""
         if trajet.fin is None:
             raise ValueError(f"trajet {trajet.trajet_id} sans fin")
         duree = trajet.fin - trajet.debut
@@ -82,6 +91,8 @@ class TarifTranches:
 
 @dataclass(frozen=True)
 class Tarifs:
+    """Contenu de tarifs.json : pénalité, seuil et grilles datées."""
+
     penalite: Decimal
     seuil_non_restitution: timedelta
     grilles: tuple[tuple[date, dict[Formule, TarifTranches]], ...]
@@ -94,6 +105,8 @@ class Tarifs:
 
 @dataclass(frozen=True)
 class Abonnement:
+    """Une période d'abonnement, bornes comprises ; fin vide = en cours."""
+
     formule: Formule
     debut: date
     fin: date | None
@@ -101,6 +114,8 @@ class Abonnement:
 
 @dataclass(frozen=True)
 class Facture:
+    """Montant dû pour un trajet, avec sa justification."""
+
     trajet_id: str
     jour: date
     formule: Formule
@@ -111,11 +126,14 @@ class Facture:
 
 @dataclass
 class Cumul:
+    """Nombre et somme de factures."""
+
     nombre: int = 0
     montant: Decimal = ZERO
 
 
 def lire_tarifs(chemin: Path) -> Tarifs:
+    """Lit tarifs.json sans jamais passer par un float."""
     # parse_float : même un prix écrit sans guillemets ne passe jamais par un float.
     donnees = json.loads(chemin.read_text(encoding="utf-8"), parse_float=Decimal)
     return Tarifs(

@@ -21,6 +21,8 @@ SOIR = range(17, 20)
 
 
 class TypeVelo(Enum):
+    """Types de vélo de l'export."""
+
     MECANIQUE = "mecanique"
     ELECTRIQUE = "electrique"
 
@@ -105,6 +107,7 @@ class Flux:
     jours: set[date] = field(default_factory=set)
 
     def nombre_de_jours(self, weekend: bool) -> int:
+        """Nombre de jours observés, en semaine ou le week-end."""
         return sum(_est_weekend(jour) == weekend for jour in self.jours)
 
 

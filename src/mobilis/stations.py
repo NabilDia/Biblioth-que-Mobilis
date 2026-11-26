@@ -15,6 +15,8 @@ OBLIGATOIRES = {"Code station", "Statut", "Mise en service"}
 
 
 class Statut(Enum):
+    """États possibles d'une station dans le référentiel."""
+
     EN_SERVICE = "EN SERVICE"
     HORS_SERVICE = "HORS SERVICE"
     FERMEE = "FERMEE"
@@ -22,6 +24,8 @@ class Statut(Enum):
 
 @dataclass(frozen=True)
 class Station:
+    """Une station nettoyée ; None remplace une valeur absente de l'export."""
+
     code: str
     nom: str
     commune: str
@@ -33,6 +37,8 @@ class Station:
 
 
 class Traitement(Enum):
+    """Ce que la lecture a fait d'une anomalie."""
+
     REJETEE = "Ligne rejetée"
     DOUBLON = "Station en double"
     CORRIGEE = "Valeur corrigée"
@@ -41,6 +47,8 @@ class Traitement(Enum):
 
 @dataclass(frozen=True)
 class Anomalie:
+    """Un défaut relevé dans stations.csv, avec sa ligne et son traitement."""
+
     ligne: int
     code: str
     champ: str
